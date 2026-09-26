@@ -24,15 +24,15 @@ export function Footer() {
           <ul className="space-y-3 text-body-small text-neutral-gray">
             <li className="flex items-center gap-3">
               <MapPin className="w-5 h-5 text-secondary-main shrink-0" />
-              Av. Principal, 1000 - Centro, SP
+              Av. Fernão Dias Paes Leme, 713 - Jardim Cruz Alta, Várzea Paulista - SP, 13220-001
             </li>
             <li className="flex items-center gap-3">
               <Phone className="w-5 h-5 text-secondary-main shrink-0" />
-              (19) 99999-8888
+              (19) 98137-6210
             </li>
             <li className="flex items-center gap-3">
               <Clock className="w-5 h-5 text-secondary-main shrink-0" />
-              Seg a Sex: 08:00h - 18:00h
+              Seg a Sex: 08:00h - 20:00h
             </li>
           </ul>
         </div>
