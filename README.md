@@ -1,75 +1,34 @@
-# React + TypeScript + Vite
+# 🦷 Sistema de Gestão Odontológica — Front-end
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interface web responsiva e modular para a clínica odontológica da **Dra. Thais Tardelli**, desenvolvida com base em prototipação no Figma e arquitetura orientada a componentes.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 👥 Equipe do Projeto
 
-## React Compiler
+* **Thales** — *Backend e Banco de Dados*
+* **Fernando Nogueira** — *Prototipagem Figma e Frontend*
+* **Gabriel Henrique Sartório** — *Engenharia de Software (GitHub) / Cloud*
+* **Matheus Barrense Mendes dos Santos** — *Backend - Node.JS*
+* **João Miguel da Silva Cavalcante** — *Engenharia de Software (GitHub) / Frontend / Figma*
+* **Kayky Juan Tavares Dos Reis** — *Engenharia de Software (GitHub) / Cloud*
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 📖 Descrição da Aplicação
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+A aplicação tem como objetivo proporcionar uma experiência fluida para pacientes e administração da clínica:
+* **Landing Page Institucional:** Apresentação da clínica, corpo clínico, serviços oferecidos e canais de contato.
+* **Área do Paciente:** Visualização de consultas agendadas, agendamento interativo com escolha de procedimentos/horários, edição de perfil e integração visual de suporte.
+* **Autenticação:** Telas de Cadastro e Login com validações de interface e estados controlados.
+* **Painel Administrativo:** Gestão de atendimentos do dia, visualização de agenda por horários, listagem de pacientes e configurações da clínica.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🛠️ Tecnologias Utilizadas
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+* **[React](https://react.dev/)** (v19) — Biblioteca declarativa para construção de interfaces.
+* **[TypeScript](https://www.typescriptlang.org/)** — Tipagem estática para maior consistência e segurança de dados nos componentes.
+* **[Vite](https://vitejs.dev/)** — Ferramenta de build rápida e ambiente de desenvolvimento local otimizado.
+* **[Tailwind CSS v4](https://tailwindcss.com/)** — Framework de estilização baseado em classes utilitárias via diretiva `@theme`.
+* **[Lucide React](https://lucide.dev/)** — Conjunto de ícones vetoriais leves e consistentes.
