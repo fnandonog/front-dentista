@@ -48,7 +48,7 @@ export function Login() {
             if (userType === "CLINICA" || userType === "ADMIN") {
                 navigate("/admin");
             } else {
-                navigate("/meus-agendamentos");
+                navigate("/inicio");
             }
         } catch (err: any) {
             setErrorMessage(err.message || "E-mail ou senha incorretos.");

@@ -1,13 +1,24 @@
 import { Link } from "react-router-dom";
 import { Button } from "./ui/Button";
+import logoDra from "../assets/logoIrma.png";
 
 export function Header() {
   return (
     <header className="w-full bg-white border-b border-neutral-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-8 h-20 flex items-center justify-between">
-        {/* Marca / Nome */}
-        <Link to="/" className="text-lg font-bold text-neutral-dark font-main tracking-tight cursor-pointer">
-          Dra. Thais Tardelli
+        {/* Marca / Logo + Nome */}
+        <Link
+          to="/"
+          className="flex items-center gap-3 group cursor-pointer"
+        >
+          <img
+            src={logoDra}
+            alt="Logo Dra. Thais Tardelli"
+            className="h-14 w-auto max-w-[64px] object-contain transition-transform group-hover:scale-105"
+          />
+          <span className="text-lg font-bold text-neutral-dark font-main tracking-tight group-hover:text-primary-main transition-colors">
+            Dra. Thais Tardelli
+          </span>
         </Link>
 
         {/* Links Centrais de Navegação */}

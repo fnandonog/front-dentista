@@ -57,7 +57,7 @@ export function Cadastro() {
         }
     };
 
-    // Submissão do Formulário
+    // Submissão do Formulário com login e redirecionamento automáticos
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMessage("");
@@ -79,6 +79,8 @@ export function Cadastro() {
 
         try {
             setSubmitting(true);
+
+            // 1. Cria a conta no banco de dados
             await api.register({
                 nome,
                 email,
@@ -94,8 +96,13 @@ export function Cadastro() {
                 tipo: "PACIENTE"
             });
 
-            // Redireciona para o login ou painel inicial
-            navigate("/login");
+            // 2. Faz login automático para armazenar o token JWT caso a rota de register não devolva token diretamente
+            if (!localStorage.getItem("@clinica:token")) {
+                await api.login({ email, senha });
+            }
+
+            // 3. Encaminha o paciente diretamente para a área de agendamentos
+            navigate("/inicio");
         } catch (err: any) {
             setErrorMessage(err.message || "Erro ao realizar cadastro.");
         } finally {
@@ -320,7 +327,7 @@ export function Cadastro() {
                         <Button
                             type="submit"
                             disabled={submitting}
-                            className="w-full py-3.5 bg-primary-main hover:bg-primary-dark text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2"
+                            className="w-full py-3.5 bg-primary-main hover:bg-primary-dark text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
                         >
                             {submitting ? (
                                 <>
@@ -343,7 +350,7 @@ export function Cadastro() {
                     </p>
                 </div>
 
-                {/* Coluna Direita: Card Promocional com Imagem */}
+                {/* Coluna Direita: Card Promocional */}
                 <div className="lg:col-span-6 hidden lg:block">
                     <div className="relative rounded-3xl overflow-hidden bg-neutral-dark min-h-[560px] flex flex-col justify-between p-8 text-white shadow-xl">
                         <div className="absolute inset-0 bg-gradient-to-t from-neutral-dark via-neutral-dark/40 to-transparent z-10" />

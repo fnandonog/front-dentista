@@ -1,76 +1,219 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
-import { TimeSlot } from "../components/ui/TimeSlot";
+import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { SidebarPaciente } from "../components/SidebarPaciente";
+import { api } from "../services/api";
 
-interface AgendarConsultaProps {
-    onSucesso?: () => void;
-}
+const PROCEDIMENTOS = [
+    { id: 1, nome: "Limpeza / Profilaxia", duracao: 45 },
+    { id: 2, nome: "Clareamento Dental", duracao: 60 },
+    { id: 3, nome: "Ortodontia & Alinhadores", duracao: 45 },
+    { id: 4, nome: "Estética Bucal & Facetas", duracao: 60 }
+];
 
-export function AgendarConsulta({ onSucesso }: AgendarConsultaProps) {
+const NOMES_MESES = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+// Grade de 30 em 30 min (09:00 até 19:30)
+const SLOTS_HORARIOS = [
+    // Manhã
+    { hora: "09:00", periodo: "manha" },
+    { hora: "09:30", periodo: "manha" },
+    { hora: "10:00", periodo: "manha" },
+    { hora: "10:30", periodo: "manha" },
+    { hora: "11:00", periodo: "manha" },
+    { hora: "11:30", periodo: "manha" },
+    // Tarde / Noite
+    { hora: "13:00", periodo: "tarde" },
+    { hora: "13:30", periodo: "tarde" },
+    { hora: "14:00", periodo: "tarde" },
+    { hora: "14:30", periodo: "tarde" },
+    { hora: "15:00", periodo: "tarde" },
+    { hora: "15:30", periodo: "tarde" },
+    { hora: "16:00", periodo: "tarde" },
+    { hora: "16:30", periodo: "tarde" },
+    { hora: "17:00", periodo: "tarde" },
+    { hora: "17:30", periodo: "tarde" },
+    { hora: "18:00", periodo: "tarde" },
+    { hora: "18:30", periodo: "tarde" },
+    { hora: "19:00", periodo: "tarde" },
+    { hora: "19:30", periodo: "tarde" },
+];
+
+export function AgendarConsulta() {
     const navigate = useNavigate();
 
-    const [procedimento, setProcedimento] = useState("Limpeza / Profilaxia");
-    const [diaSelecionado, setDiaSelecionado] = useState<number>(3);
-    const [horarioSelecionado, setHorarioSelecionado] = useState<string>("10:00");
+    const hoje = useMemo(() => new Date(), []);
+    const [mesAtualVisualizado, setMesAtualVisualizado] = useState(hoje.getMonth());
+    const [anoAtualVisualizado, setAnoAtualVisualizado] = useState(hoje.getFullYear());
+    const [diaSelecionado, setDiaSelecionado] = useState(hoje.getDate());
+
+    const [procedimentoId, setProcedimentoId] = useState<number>(1);
+    const [horarioSelecionado, setHorarioSelecionado] = useState<string>("09:00");
+
+    const [agendamentosExistentes, setAgendamentosExistentes] = useState<any[]>([]);
+    const [carregandoHorarios, setCarregandoHorarios] = useState(false);
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState("");
     const [modalAberto, setModalAberto] = useState(false);
 
-    // Dias do calendário (Setembro 2026)
-    const diasMes = [
-        { dia: 30, outroMes: true },
-        { dia: 31, outroMes: true },
-        { dia: 1, outroMes: false },
-        { dia: 2, outroMes: false },
-        { dia: 3, outroMes: false },
-        { dia: 4, outroMes: false },
-        { dia: 5, outroMes: false },
-        { dia: 6, outroMes: false },
-        { dia: 7, outroMes: false },
-        { dia: 8, outroMes: false },
-        { dia: 9, outroMes: false },
-        { dia: 10, outroMes: false },
-        { dia: 11, outroMes: false },
-        { dia: 12, outroMes: false },
-        { dia: 13, outroMes: false },
-        { dia: 14, outroMes: false },
-        { dia: 15, outroMes: false },
-        { dia: 16, outroMes: false },
-        { dia: 17, outroMes: false },
-        { dia: 18, outroMes: false },
-        { dia: 19, outroMes: false },
-        { dia: 20, outroMes: false },
-        { dia: 21, outroMes: false },
-        { dia: 22, outroMes: false },
-        { dia: 23, outroMes: false },
-        { dia: 24, outroMes: false },
-        { dia: 25, outroMes: false },
-        { dia: 26, outroMes: false },
-        { dia: 27, outroMes: false },
-        { dia: 28, outroMes: false },
-        { dia: 29, outroMes: false },
-        { dia: 30, outroMes: false },
-        { dia: 1, outroMes: true },
-        { dia: 2, outroMes: true },
-        { dia: 3, outroMes: true },
-    ];
+    const procedimentoAtual = PROCEDIMENTOS.find(p => p.id === procedimentoId) || PROCEDIMENTOS[0];
 
-    const handleConfirmarSucesso = () => {
-        setModalAberto(false);
-        if (onSucesso) {
-            onSucesso();
+    // Impede voltar antes do mês corrente
+    const isMesAtual =
+        mesAtualVisualizado === hoje.getMonth() &&
+        anoAtualVisualizado === hoje.getFullYear();
+
+    // Carrega agendamentos existentes no backend para verificação de conflitos
+    useEffect(() => {
+        async function fetchAgendamentos() {
+            try {
+                setCarregandoHorarios(true);
+                const data = await api.getHorariosOcupados();
+                if (Array.isArray(data)) {
+                    setAgendamentosExistentes(data);
+                }
+            } catch (err) {
+                console.error("Erro ao buscar horários ocupados:", err);
+            } finally {
+                setCarregandoHorarios(false);
+            }
+        }
+        fetchAgendamentos();
+    }, [mesAtualVisualizado, anoAtualVisualizado]);
+
+    // Navegação de Meses
+    const handleMesAnterior = () => {
+        if (isMesAtual) return;
+        if (mesAtualVisualizado === 0) {
+            setMesAtualVisualizado(11);
+            setAnoAtualVisualizado(prev => prev - 1);
         } else {
-            navigate("/meus-agendamentos");
+            setMesAtualVisualizado(prev => prev - 1);
+        }
+        setDiaSelecionado(1);
+    };
+
+    const handleProximoMes = () => {
+        if (mesAtualVisualizado === 11) {
+            setMesAtualVisualizado(0);
+            setAnoAtualVisualizado(prev => prev + 1);
+        } else {
+            setMesAtualVisualizado(prev => prev + 1);
+        }
+        setDiaSelecionado(1);
+    };
+
+    // Grade do calendário do mês selecionado
+    const diasCalendario = useMemo(() => {
+        const primeiroDiaSemana = new Date(anoAtualVisualizado, mesAtualVisualizado, 1).getDay();
+        const totalDiasMes = new Date(anoAtualVisualizado, mesAtualVisualizado + 1, 0).getDate();
+        const totalDiasMesAnterior = new Date(anoAtualVisualizado, mesAtualVisualizado, 0).getDate();
+
+        const dias = [];
+
+        // Dias do mês anterior para preencher a primeira semana
+        for (let i = primeiroDiaSemana - 1; i >= 0; i--) {
+            dias.push({
+                dia: totalDiasMesAnterior - i,
+                outroMes: true,
+                desabilitado: true
+            });
+        }
+
+        // Dias do mês atual
+        for (let i = 1; i <= totalDiasMes; i++) {
+            const dataComparar = new Date(anoAtualVisualizado, mesAtualVisualizado, i);
+            const hojeZerado = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+            const ehPassado = dataComparar < hojeZerado;
+
+            dias.push({
+                dia: i,
+                outroMes: false,
+                desabilitado: ehPassado
+            });
+        }
+
+        // Preenche o restante até múltiplo de 7
+        let resto = (7 - (dias.length % 7)) % 7;
+        for (let i = 1; i <= resto; i++) {
+            dias.push({
+                dia: i,
+                outroMes: true,
+                desabilitado: true
+            });
+        }
+
+        return dias;
+    }, [mesAtualVisualizado, anoAtualVisualizado, hoje]);
+
+    // Validação de conflito de horários corrigida para UTC/Local
+    const isHorarioOcupado = (horarioStr: string) => {
+        const [h, m] = horarioStr.split(":").map(Number);
+
+        // Data e hora local exata
+        const slotInicio = new Date(anoAtualVisualizado, mesAtualVisualizado, diaSelecionado, h, m, 0).getTime();
+        const slotFim = slotInicio + (procedimentoAtual.duracao * 60000);
+        const slotPadraoFim = slotInicio + (30 * 60000);
+
+        return agendamentosExistentes.some((item) => {
+            if (!item.data_hora_inicio || !item.data_hora_fim) return false;
+
+            const agendamentoInicio = new Date(item.data_hora_inicio).getTime();
+            const agendamentoFim = new Date(item.data_hora_fim).getTime();
+
+            const conflitoIntervalo = slotInicio < agendamentoFim && slotFim > agendamentoInicio;
+            const slotCaiDentro = slotInicio < agendamentoFim && slotPadraoFim > agendamentoInicio;
+
+            return conflitoIntervalo || slotCaiDentro;
+        });
+    };
+
+    const handleAgendar = async () => {
+        setErro("");
+
+        if (isHorarioOcupado(horarioSelecionado)) {
+            setErro("Este horário já está ocupado. Por favor, escolha outro.");
+            return;
+        }
+
+        try {
+            setSalvando(true);
+
+            const pad = (n: number) => String(n).padStart(2, "0");
+            const mesFormatado = pad(mesAtualVisualizado + 1);
+            const diaFormatado = pad(diaSelecionado);
+            const dataBase = `${anoAtualVisualizado}-${mesFormatado}-${diaFormatado}`;
+
+            const [h, m] = horarioSelecionado.split(":").map(Number);
+            const dataInicio = new Date(anoAtualVisualizado, mesAtualVisualizado, diaSelecionado, h, m, 0);
+            const dataFim = new Date(dataInicio.getTime() + procedimentoAtual.duracao * 60000);
+
+            const strInicio = `${dataBase} ${pad(dataInicio.getHours())}:${pad(dataInicio.getMinutes())}:00`;
+            const strFim = `${dataBase} ${pad(dataFim.getHours())}:${pad(dataFim.getMinutes())}:00`;
+
+            await api.createAgendamento({
+                procedimento_id: procedimentoId,
+                data_hora_inicio: strInicio,
+                data_hora_fim: strFim,
+                observacao: "Agendamento realizado via painel web"
+            });
+
+            setModalAberto(true);
+        } catch (err: any) {
+            setErro(err.message || "Erro ao agendar consulta.");
+        } finally {
+            setSalvando(false);
         }
     };
 
     return (
         <div className="min-h-screen bg-[#FBFBFC] flex font-main text-neutral-dark">
-            {/* Sidebar fixa à esquerda */}
             <SidebarPaciente />
 
-            {/* Conteúdo da Página */}
             <main className="flex-1 p-6 md:p-10 max-w-5xl mx-auto space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-neutral-dark">Agendar Consulta</h1>
@@ -79,8 +222,14 @@ export function AgendarConsulta({ onSucesso }: AgendarConsultaProps) {
                     </p>
                 </div>
 
+                {erro && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-semibold">
+                        {erro}
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                    {/* Coluna 1: Procedimento e Data */}
+                    {/* Coluna 1: Procedimento e Calendário Dinâmico */}
                     <div className="bg-white p-6 rounded-2xl border border-neutral-border space-y-6">
                         <h2 className="text-base font-bold text-neutral-dark">1. Procedimento e Data</h2>
 
@@ -89,25 +238,44 @@ export function AgendarConsulta({ onSucesso }: AgendarConsultaProps) {
                                 Procedimento Odontológico
                             </label>
                             <select
-                                value={procedimento}
-                                onChange={(e) => setProcedimento(e.target.value)}
+                                value={procedimentoId}
+                                onChange={(e) => setProcedimentoId(Number(e.target.value))}
                                 className="w-full px-4 py-3 bg-[#FAFAFB] border border-neutral-border rounded-xl text-sm font-medium text-neutral-dark outline-none focus:border-primary-main cursor-pointer"
                             >
-                                <option value="Limpeza / Profilaxia">Limpeza / Profilaxia</option>
-                                <option value="Clareamento Dental">Clareamento Dental</option>
-                                <option value="Ortodontia & Alinhadores">Ortodontia & Alinhadores</option>
-                                <option value="Estética Bucal & Facetas">Estética Bucal & Facetas</option>
+                                {PROCEDIMENTOS.map((proc) => (
+                                    <option key={proc.id} value={proc.id}>
+                                        {proc.nome} (~{proc.duracao} min)
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
                         {/* Calendário */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between px-2">
-                                <button type="button" className="p-1 hover:bg-neutral-bg rounded-lg text-neutral-gray">
+                                <button
+                                    type="button"
+                                    onClick={handleMesAnterior}
+                                    disabled={isMesAtual}
+                                    className={`p-1.5 rounded-lg transition ${isMesAtual
+                                        ? "text-neutral-300 cursor-not-allowed"
+                                        : "hover:bg-neutral-bg text-neutral-gray hover:text-neutral-dark cursor-pointer"
+                                        }`}
+                                    title={isMesAtual ? "Não é possível agendar em meses passados" : "Mês anterior"}
+                                >
                                     <ChevronLeft className="w-5 h-5" />
                                 </button>
-                                <span className="font-bold text-sm text-neutral-dark">Setembro 2026</span>
-                                <button type="button" className="p-1 hover:bg-neutral-bg rounded-lg text-neutral-gray">
+
+                                <span className="font-bold text-sm text-neutral-dark">
+                                    {NOMES_MESES[mesAtualVisualizado]} {anoAtualVisualizado}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={handleProximoMes}
+                                    className="p-1.5 hover:bg-neutral-bg rounded-lg text-neutral-gray hover:text-neutral-dark cursor-pointer transition"
+                                    title="Próximo mês"
+                                >
                                     <ChevronRight className="w-5 h-5" />
                                 </button>
                             </div>
@@ -117,19 +285,20 @@ export function AgendarConsulta({ onSucesso }: AgendarConsultaProps) {
                             </div>
 
                             <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium">
-                                {diasMes.map((item, index) => {
+                                {diasCalendario.map((item, index) => {
                                     const isSelected = !item.outroMes && item.dia === diaSelecionado;
+
                                     return (
                                         <button
                                             key={index}
                                             type="button"
-                                            disabled={item.outroMes}
+                                            disabled={item.desabilitado}
                                             onClick={() => setDiaSelecionado(item.dia)}
-                                            className={`h-9 w-9 mx-auto flex items-center justify-center rounded-full transition-all ${item.outroMes
-                                                    ? "text-neutral-gray/40 cursor-default"
-                                                    : isSelected
-                                                        ? "bg-primary-main text-white font-bold shadow-sm"
-                                                        : "text-neutral-dark hover:bg-neutral-bg cursor-pointer"
+                                            className={`h-9 w-9 mx-auto flex items-center justify-center rounded-full transition-all ${item.desabilitado
+                                                ? "text-neutral-300 cursor-not-allowed"
+                                                : isSelected
+                                                    ? "bg-primary-main text-white font-bold shadow-sm"
+                                                    : "text-neutral-dark hover:bg-neutral-bg cursor-pointer"
                                                 }`}
                                         >
                                             {item.dia}
@@ -140,91 +309,124 @@ export function AgendarConsulta({ onSucesso }: AgendarConsultaProps) {
                         </div>
                     </div>
 
-                    {/* Coluna 2: Horários Disponíveis e Resumo */}
+                    {/* Coluna 2: Horários Disponíveis */}
                     <div className="bg-white p-6 rounded-2xl border border-neutral-border space-y-6">
-                        <h2 className="text-base font-bold text-neutral-dark">2. Horários Disponíveis</h2>
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-base font-bold text-neutral-dark">2. Horários Disponíveis</h2>
+                            {carregandoHorarios && (
+                                <span className="text-xs text-neutral-gray flex items-center gap-1">
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-main" /> Verificando vagas...
+                                </span>
+                            )}
+                        </div>
 
+                        {/* Manhã */}
                         <div>
-                            <span className="block text-xs font-semibold text-neutral-gray mb-3">Manhã</span>
-                            <div className="grid grid-cols-3 gap-3">
-                                {["09:00", "10:00", "10:40"].map((hora) => (
-                                    <TimeSlot
-                                        key={hora}
-                                        time={hora}
-                                        isSelected={horarioSelecionado === hora}
-                                        onClick={() => setHorarioSelecionado(hora)}
-                                    />
-                                ))}
+                            <span className="block text-xs font-semibold text-neutral-gray mb-2.5">
+                                Manhã (09:00 - 11:30)
+                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                                {SLOTS_HORARIOS.filter(s => s.periodo === "manha").map((slot) => {
+                                    const ocupado = isHorarioOcupado(slot.hora);
+                                    const selecionado = horarioSelecionado === slot.hora;
+
+                                    return (
+                                        <button
+                                            key={slot.hora}
+                                            type="button"
+                                            disabled={ocupado}
+                                            onClick={() => setHorarioSelecionado(slot.hora)}
+                                            className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all text-center ${ocupado
+                                                ? "bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed opacity-60"
+                                                : selecionado
+                                                    ? "bg-primary-main border-primary-main text-white shadow-sm"
+                                                    : "bg-white border-neutral-border text-neutral-dark hover:border-primary-main/60 cursor-pointer"
+                                                }`}
+                                        >
+                                            {slot.hora}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
+                        {/* Tarde e Noite */}
                         <div>
-                            <span className="block text-xs font-semibold text-neutral-gray mb-3">Tarde</span>
-                            <div className="grid grid-cols-3 gap-3">
-                                {["15:00", "15:30", "16:30"].map((hora) => (
-                                    <TimeSlot
-                                        key={hora}
-                                        time={hora}
-                                        isSelected={horarioSelecionado === hora}
-                                        onClick={() => setHorarioSelecionado(hora)}
-                                    />
-                                ))}
+                            <span className="block text-xs font-semibold text-neutral-gray mb-2.5">
+                                Tarde / Noite (13:00 - 19:30)
+                            </span>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {SLOTS_HORARIOS.filter(s => s.periodo === "tarde").map((slot) => {
+                                    const ocupado = isHorarioOcupado(slot.hora);
+                                    const selecionado = horarioSelecionado === slot.hora;
+
+                                    return (
+                                        <button
+                                            key={slot.hora}
+                                            type="button"
+                                            disabled={ocupado}
+                                            onClick={() => setHorarioSelecionado(slot.hora)}
+                                            className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all text-center ${ocupado
+                                                ? "bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed opacity-60"
+                                                : selecionado
+                                                    ? "bg-primary-main border-primary-main text-white shadow-sm"
+                                                    : "bg-white border-neutral-border text-neutral-dark hover:border-primary-main/60 cursor-pointer"
+                                                }`}
+                                        >
+                                            {slot.hora}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* Caixa de Resumo */}
+                        {/* Resumo */}
                         <div className="bg-[#F8F9FA] p-4 rounded-xl text-xs space-y-1.5 border border-neutral-border/60">
-                            <p><strong className="text-neutral-gray">Procedimento:</strong> {procedimento}</p>
-                            <p><strong className="text-neutral-gray">Data:</strong> Quinta-feira, {String(diaSelecionado).padStart(2, "0")} de Setembro de 2026</p>
-                            <p><strong className="text-neutral-gray">Horário:</strong> {horarioSelecionado}</p>
+                            <p><strong className="text-neutral-gray">Procedimento:</strong> {procedimentoAtual.nome}</p>
+                            <p>
+                                <strong className="text-neutral-gray">Data:</strong>{" "}
+                                {String(diaSelecionado).padStart(2, "0")} de {NOMES_MESES[mesAtualVisualizado]} de {anoAtualVisualizado}
+                            </p>
+                            <p><strong className="text-neutral-gray">Horário Selecionado:</strong> {horarioSelecionado}</p>
                             <p><strong className="text-neutral-gray">Profissional:</strong> Dra. Thais Tardelli</p>
                         </div>
 
                         <Button
                             type="button"
-                            onClick={() => setModalAberto(true)}
-                            className="w-full bg-primary-main hover:bg-primary-dark text-white rounded-xl py-3.5 font-semibold text-sm cursor-pointer"
+                            onClick={handleAgendar}
+                            disabled={salvando || isHorarioOcupado(horarioSelecionado)}
+                            className="w-full bg-primary-main hover:bg-primary-dark text-white rounded-xl py-3.5 font-semibold text-sm cursor-pointer flex items-center justify-center gap-2"
                         >
-                            Confirmar Agendamento
+                            {salvando ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" /> Confirmando no sistema...
+                                </>
+                            ) : (
+                                "Confirmar Agendamento"
+                            )}
                         </Button>
                     </div>
                 </div>
 
                 {/* Modal de Confirmação */}
                 {modalAberto && (
-                    <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="fixed inset-0 bg-neutral-dark/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
                         <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center space-y-5 shadow-xl border border-neutral-border">
                             <div className="w-14 h-14 rounded-full bg-primary-light text-primary-main flex items-center justify-center mx-auto">
                                 <Check className="w-7 h-7 stroke-[2.5]" />
                             </div>
                             <div>
                                 <h3 className="text-xl font-bold text-neutral-dark">Consulta Agendada!</h3>
-                                <p className="text-xs text-neutral-gray mt-1">Sua consulta foi confirmada com sucesso.</p>
+                                <p className="text-xs text-neutral-gray mt-1">Sua consulta foi salva com sucesso no banco de dados.</p>
                             </div>
 
-                            <div className="bg-[#F8F9FA] p-4 rounded-xl text-left text-xs space-y-1.5 border border-neutral-border/60">
-                                <p><strong className="text-neutral-gray">Procedimento:</strong> {procedimento}</p>
-                                <p><strong className="text-neutral-gray">Data:</strong> Quinta-feira, {String(diaSelecionado).padStart(2, "0")} de Setembro de 2026</p>
-                                <p><strong className="text-neutral-gray">Horário:</strong> {horarioSelecionado}</p>
-                                <p><strong className="text-neutral-gray">Profissional:</strong> Dra. Thais Tardelli</p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Button
-                                    type="button"
-                                    onClick={handleConfirmarSucesso}
-                                    className="w-full bg-primary-main hover:bg-primary-dark text-white py-3 rounded-xl text-sm cursor-pointer"
-                                >
-                                    Ver Meus Agendamentos
-                                </Button>
-                                <button
-                                    type="button"
-                                    onClick={() => setModalAberto(false)}
-                                    className="text-xs text-neutral-gray hover:text-neutral-dark transition cursor-pointer"
-                                >
-                                    Fechar
-                                </button>
-                            </div>
+                            <Button
+                                type="button"
+                                onClick={() => navigate("/meus-agendamentos")}
+                                className="w-full bg-primary-main hover:bg-primary-dark text-white py-3 rounded-xl text-sm cursor-pointer"
+                            >
+                                Ver Meus Agendamentos
+                            </Button>
                         </div>
                     </div>
                 )}

@@ -1,5 +1,9 @@
+import { Link } from "react-router-dom";
 import { Button } from "./ui/Button";
-import heroImg from "../assets/hero.png"; // Importação correta do asset
+
+// Foto clínica profissional de sorriso em alta resolução
+const FOTO_SORRISO =
+  "https://clinicavittagoiania.com.br/upload/blog/V6uA3LuwS5QxL0wHJ3WIkCIci28BGEfv897fROPH.jpeg";
 
 export function Hero() {
   return (
@@ -21,18 +25,22 @@ export function Hero() {
           </p>
 
           <div className="flex flex-wrap gap-4 pt-2">
-            <Button variant="primary">Agendar Consulta</Button>
-            <Button variant="outline">Conhecer Serviços</Button>
+            <Link to="/cadastro">
+              <Button variant="primary">Agendar Consulta</Button>
+            </Link>
+            <a href="#servicos">
+              <Button variant="outline">Conhecer Serviços</Button>
+            </a>
           </div>
         </div>
 
-        {/* Coluna Direita: Foto com Cantos Arredondados */}
+        {/* Coluna Direita: Foto do Sorriso */}
         <div className="flex justify-center lg:justify-end">
-          <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-lg border-4 border-white">
+          <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-white group">
             <img
-              src={heroImg}
-              alt="Dra. Thais Tardelli e Paciente"
-              className="w-full h-full object-cover"
+              src={FOTO_SORRISO}
+              alt="Sorriso saudável e radiante no consultório odontológico"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           </div>
         </div>
@@ -40,3 +48,5 @@ export function Hero() {
     </section>
   );
 }
+
+export default Hero;
