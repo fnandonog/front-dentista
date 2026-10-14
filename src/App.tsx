@@ -6,6 +6,7 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { MeusAgendamentos } from "./pages/MeusAgendamentos";
 import { AgendarConsulta } from "./pages/AgendarConsulta";
 import { MeuPerfil } from "./pages/MeuPerfil";
+import { InicioPaciente } from "./pages/InicioPaciente";
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
         {/* Área do Paciente */}
         <Route path="/meus-agendamentos" element={<MeusAgendamentos />} />
         <Route path="/agendar" element={<AgendarConsulta />} />
+        <Route path="/inicio" element={<InicioPaciente />} />
         <Route path="/perfil" element={<MeuPerfil />} />
       </Routes>
     </BrowserRouter>

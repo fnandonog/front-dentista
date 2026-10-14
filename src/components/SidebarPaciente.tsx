@@ -13,13 +13,15 @@ export function SidebarPaciente({ activeItem, onNavigate }: SidebarPacienteProps
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Mapeia a URL atual para a aba ativa caso activeItem não seja passado
+  // Mapeia a URL atual para a aba ativa
   const getCurrentActive = (): AbaPaciente => {
     if (activeItem) return activeItem;
+    if (location.pathname.includes("/inicio") || location.pathname === "/") return "inicio";
     if (location.pathname.includes("/agendar")) return "agendar";
     if (location.pathname.includes("/meus-agendamentos")) return "agendamentos";
     if (location.pathname.includes("/perfil")) return "perfil";
-    return "agendamentos";
+    if (location.pathname.includes("/chatbot")) return "chatbot";
+    return "inicio";
   };
 
   const currentTab = getCurrentActive();
@@ -32,23 +34,26 @@ export function SidebarPaciente({ activeItem, onNavigate }: SidebarPacienteProps
 
     switch (aba) {
       case "inicio":
-      case "agendamentos":
-        navigate("/meus-agendamentos");
+        navigate("/inicio");
         break;
       case "agendar":
         navigate("/agendar");
+        break;
+      case "agendamentos":
+        navigate("/meus-agendamentos");
         break;
       case "perfil":
         navigate("/perfil");
         break;
       case "chatbot":
-        // Pode abrir modal ou navegar se tiver rota
+        navigate("/chatbot");
         break;
     }
   };
 
   const handleLogout = () => {
     localStorage.removeItem("@clinica:token");
+    localStorage.removeItem("@clinica:user");
     navigate("/login");
   };
 
