@@ -302,6 +302,25 @@ export const api = {
             throw new Error(data.error || data.message || 'Erro ao excluir tratamento');
         }
         return data;
+    },
+
+    // ==========================================
+    // CHATBOT COM INTELIGÊNCIA ARTIFICAL 
+    // ==========================================
+    async enviarMensagemChat(mensagem: string) {
+        const response = await fetch(`${API_BASE_URL}/chat/mensagem`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ mensagem })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao comunicar com a assistente!');
+        }
+
+        return data;
     }
 };
 

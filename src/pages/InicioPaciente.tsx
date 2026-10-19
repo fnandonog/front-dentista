@@ -10,24 +10,46 @@ import {
     CheckCircle2
 } from "lucide-react";
 import { SidebarPaciente } from "../components/SidebarPaciente";
+import { api } from "../services/api";
 
 export function InicioPaciente() {
     const [nomePaciente, setNomePaciente] = useState("Paciente");
 
     useEffect(() => {
+        const extrairPrimeiroNome = (nomeCompleto: string) => {
+            return nomeCompleto.trim().split(" ")[0];
+        };
+
         const utilizadorGuardado = localStorage.getItem("@clinica:user");
         if (utilizadorGuardado) {
             try {
                 const u = JSON.parse(utilizadorGuardado);
-                // Testa as formas mais comuns que o banco/login costuma devolver
                 const nomeCompleto = u.nome || u.paciente_nome || u.name;
                 if (nomeCompleto) {
-                    setNomePaciente(nomeCompleto.trim().split(" ")[0]);
+                    setNomePaciente(extrairPrimeiroNome(nomeCompleto));
+                    return;
                 }
             } catch (e) {
-                console.error("Erro ao ler dados do paciente:", e);
+                console.error("Erro ao ler dados locais do paciente:", e);
             }
         }
+
+        // Se por qualquer motivo não estava no localStorage, busca do backend
+        async function buscarPerfilAtualizado() {
+            try {
+                if (api.getPerfil) {
+                    const data = await api.getPerfil();
+                    if (data?.nome) {
+                        setNomePaciente(extrairPrimeiroNome(data.nome));
+                        localStorage.setItem("@clinica:user", JSON.stringify(data));
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao sincronizar nome do paciente:", err);
+            }
+        }
+
+        buscarPerfilAtualizado();
     }, []);
 
     return (
