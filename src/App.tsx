@@ -7,6 +7,7 @@ import { MeusAgendamentos } from "./pages/MeusAgendamentos";
 import { AgendarConsulta } from "./pages/AgendarConsulta";
 import { MeuPerfil } from "./pages/MeuPerfil";
 import { InicioPaciente } from "./pages/InicioPaciente";
+import { ChatbotPaciente } from "./pages/ChatbotPaciente";
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
         <Route path="/agendar" element={<AgendarConsulta />} />
         <Route path="/inicio" element={<InicioPaciente />} />
         <Route path="/perfil" element={<MeuPerfil />} />
+        <Route path="/chatbot" element={<ChatbotPaciente />} />
       </Routes>
     </BrowserRouter>
   );

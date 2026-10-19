@@ -83,6 +83,53 @@ export const api = {
         return data;
     },
 
+    // Buscar Perfil do Usuário Logado
+    async getPerfil() {
+        const response = await fetch(`${API_BASE_URL}/usuarios/perfil`, {
+            headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao carregar dados do perfil');
+        }
+
+        return data;
+    },
+
+    // Buscar apenas a lista de pacientes cadastrados (tipo PACIENTE)
+    async getPacientes() {
+        const response = await fetch(`${API_BASE_URL}/usuarios/pacientes`, {
+            headers: getAuthHeaders(),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao carregar lista de pacientes!');
+        }
+
+        return data;
+    },
+
+    // Atualizar apenas dados parciais do perfil (Nome, E-mail e Telefone)
+    async updatePerfil(dados: { nome: string; email: string; telefone: string }) {
+        const response = await fetch(`${API_BASE_URL}/usuarios/perfil`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(dados)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao atualizar dados do perfil');
+        }
+
+        return data;
+    },
+
     // ==========================================
     // AGENDAMENTOS (CONECTADO AO APPOINTMENT CONTROLLER)
     // ==========================================
@@ -96,7 +143,7 @@ export const api = {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.message || data.error || 'Erro ao carregar agendamento!');
+            throw new Error(data.message || data.error || 'Erro ao carregar agendamentos!');
         }
 
         return data;
@@ -121,10 +168,10 @@ export const api = {
     async createAgendamento(appointmentData: {
         procedimento_id: number;
         data_hora_inicio: string;
-        data_hora_fim: string;
+        data_hora_fim?: string;
         paciente_id?: number;
-        estado?: string;
-        is_emergencia?: number;
+        estado?: 'AGENDADO' | 'CONCLUIDO' | 'CANCELADO';
+        is_emergencia?: number | boolean;
         observacao?: string;
     }) {
         const response = await fetch(`${API_BASE_URL}/agendamentos`, {
@@ -142,21 +189,26 @@ export const api = {
         return data;
     },
 
-    // Atualizar Estado da consulta
-    async updateEstadoAgendamento(id: number | string, estado: string) {
+    // Atualizar Estado da consulta (PATCH /agendamentos/:id/estado)
+    async updateStatusAgendamento(id: number | string, estado: 'AGENDADO' | 'CONCLUIDO' | 'CANCELADO' | string) {
         const response = await fetch(`${API_BASE_URL}/agendamentos/${id}/estado`, {
             method: 'PATCH',
             headers: getAuthHeaders(),
             body: JSON.stringify({ estado })
         });
 
-        const data = await response.json()
+        const data = await response.json();
 
         if (!response.ok) {
             throw new Error(data.message || data.error || 'Erro ao atualizar consulta!');
         }
 
         return data;
+    },
+
+    // Alias para manter compatibilidade caso algum componente chame updateEstadoAgendamento
+    async updateEstadoAgendamento(id: number | string, estado: string) {
+        return this.updateStatusAgendamento(id, estado);
     },
 
     // Deletar Agendamento (DELETE /agendamentos/:id)
@@ -175,7 +227,7 @@ export const api = {
         return data;
     },
 
-    // Exportação Excel do Backend (GET /agendamentos/exportar/excel)
+    // Exportação Excel nativo do Backend (GET /agendamentos/exportar/excel)
     async exportAgendamentosExcel() {
         const token = localStorage.getItem('@clinica:token');
         const response = await fetch(`${API_BASE_URL}/agendamentos/exportar/excel`, {
@@ -189,7 +241,7 @@ export const api = {
             throw new Error('Falha ao exportar a planilha de agendamentos!');
         }
 
-        // Criar Blob e disparar o download no nav
+        // Criar Blob e disparar o download no navegador
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -201,27 +253,56 @@ export const api = {
         window.URL.revokeObjectURL(url);
     },
 
+    // Buscar apenas horários bloqueados/ocupados
     async getHorariosOcupados() {
         const response = await fetch(`${API_BASE_URL}/agendamentos/ocupados`, {
-            headers: getAuthHeaders(),
+            headers: getAuthHeaders()
         });
         if (!response.ok) return [];
         return await response.json();
     },
 
-    async updatePerfil(dados: { nome: string; email: string; telefone: string }) {
-        const resposne = await fetch(`${API_BASE_URL}/usuarios/perfil`, {
-            method: "PATCH",
+    // ==========================================
+    // PROCEDIMENTOS
+    // ==========================================
+
+    // Listar todos os procedimentos
+    async getProcedimentos() {
+        const response = await fetch(`${API_BASE_URL}/procedimentos`);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Erro ao carregar tratamentos!');
+        }
+
+        return data;
+    },
+
+    // Criar novo procedimento (Dra. Thais)
+    async createProcedimento(dados: { nome: string; descricao?: string; duracao_minutos: number }) {
+        const response = await fetch(`${API_BASE_URL}/procedimentos`, {
+            method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(dados),
         });
-
-        const data = await resposne.json();
-        if (!resposne.ok) {
-            throw new Error(data.error || "Erro ao atualizar dados do perfil");
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao cadastrar tratamento!');
         }
         return data;
     },
+
+    // Excluir procedimento
+    async deleteProcedimento(id: number | string) {
+        const response = await fetch(`${API_BASE_URL}/procedimentos/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao excluir tratamento');
+        }
+        return data;
+    }
 };
 
 export default api;
