@@ -28,22 +28,24 @@ export function Login() {
             setLoading(true);
             const data = await api.login({ email, senha });
 
-            // Olhe no F12 do navegador o que o console vai mostrar aqui:
             console.log("Resposta do Login da API:", data);
 
-            // Tenta pegar o tipo/role de diferentes formatos comuns de retorno
-            const rawType =
-                data.tipo ||
-                data.role ||
-                data.user?.tipo ||
-                data.user?.role ||
-                data.usuario?.tipo ||
-                data.usuario?.role ||
-                "";
+            // Guarda o token e os dados do utilizador
+            if (data.token) {
+                localStorage.setItem("@clinica:token", data.token);
+            }
 
+            // Guarda as informações básicas para as telas de paciente
+            localStorage.setItem("@clinica:user", JSON.stringify({
+                id: data.userId || data.id,
+                nome: data.nome,
+                email: data.email,
+                telefone: data.telefone,
+                tipo: data.tipo
+            }));
+
+            const rawType = data.tipo || data.role || "";
             const userType = String(rawType).toUpperCase().trim();
-
-            console.log("Tipo identificado:", userType);
 
             if (userType === "CLINICA" || userType === "ADMIN") {
                 navigate("/admin");

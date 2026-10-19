@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutGrid, Calendar, CalendarSearch, Bot, User, LogOut } from "lucide-react";
+import { LayoutGrid, Calendar, CalendarSearch, Dog, User, LogOut } from "lucide-react";
 import { NavItem } from "./ui/NavItem";
+import logoIrma from "../assets/logoIrma.png";
 
 export type AbaPaciente = "inicio" | "agendar" | "agendamentos" | "chatbot" | "perfil";
 
@@ -60,12 +61,21 @@ export function SidebarPaciente({ activeItem, onNavigate }: SidebarPacienteProps
   return (
     <aside className="w-[260px] h-screen bg-white border-r border-neutral-border p-6 flex flex-col justify-between select-none shrink-0 sticky top-0">
       <div className="space-y-6">
-        {/* Título / Marca */}
-        <div className="pt-2 pb-4 text-center border-b border-neutral-border">
-          <h2 className="text-body-medium font-bold text-neutral-dark font-main tracking-tight">
-            Dra. Thais Tardelli
-          </h2>
-          <p className="text-[10px] text-neutral-gray tracking-widest uppercase">Área do Paciente</p>
+        {/* Título / Marca com Logo ao lado */}
+        <div className="pt-2 pb-4 border-b border-neutral-border flex items-center gap-3">
+          <img
+            src={logoIrma}
+            alt="Logo Dra. Thaís Tardelli"
+            className="w-12 h-12 object-contain rounded-xl shrink-0 drop-shadow-xs"
+          />
+          <div className="flex flex-col min-w-0">
+            <h2 className="text-sm font-bold text-neutral-dark font-main tracking-tight leading-tight truncate">
+              Dra. Thais Tardelli
+            </h2>
+            <p className="text-[10px] text-neutral-gray tracking-wider uppercase font-medium mt-0.5">
+              Área do Paciente
+            </p>
+          </div>
         </div>
 
         {/* Menus de Navegação */}
@@ -93,7 +103,7 @@ export function SidebarPaciente({ activeItem, onNavigate }: SidebarPacienteProps
 
           <NavItem
             label="Chatbot IA"
-            icon={Bot}
+            icon={Dog}
             isActive={currentTab === "chatbot"}
             onClick={() => handleItemClick("chatbot")}
           />
