@@ -5,12 +5,12 @@ import { Button } from "../components/ui/Button";
 import { SidebarPaciente } from "../components/SidebarPaciente";
 import { api } from "../services/api";
 
-const PROCEDIMENTOS = [
-    { id: 1, nome: "Limpeza / Profilaxia", duracao: 45 },
-    { id: 2, nome: "Clareamento Dental", duracao: 60 },
-    { id: 3, nome: "Ortodontia & Alinhadores", duracao: 45 },
-    { id: 4, nome: "Estética Bucal & Facetas", duracao: 60 }
-];
+interface ProcedimentoDB {
+    id: number;
+    nome: string;
+    duracao_minutos: number;
+    descricao?: string;
+}
 
 const NOMES_MESES = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -51,7 +51,11 @@ export function AgendarConsulta() {
     const [anoAtualVisualizado, setAnoAtualVisualizado] = useState(hoje.getFullYear());
     const [diaSelecionado, setDiaSelecionado] = useState(hoje.getDate());
 
-    const [procedimentoId, setProcedimentoId] = useState<number>(1);
+    // Estados de Procedimentos Dinâmicos do Banco
+    const [procedimentos, setProcedimentos] = useState<ProcedimentoDB[]>([]);
+    const [procedimentoId, setProcedimentoId] = useState<number | null>(null);
+    const [carregandoProcedimentos, setCarregandoProcedimentos] = useState(true);
+
     const [horarioSelecionado, setHorarioSelecionado] = useState<string>("09:00");
 
     const [agendamentosExistentes, setAgendamentosExistentes] = useState<any[]>([]);
@@ -60,7 +64,36 @@ export function AgendarConsulta() {
     const [erro, setErro] = useState("");
     const [modalAberto, setModalAberto] = useState(false);
 
-    const procedimentoAtual = PROCEDIMENTOS.find(p => p.id === procedimentoId) || PROCEDIMENTOS[0];
+    // Carregar procedimentos reais cadastrados no banco
+    useEffect(() => {
+        async function fetchProcedimentos() {
+            try {
+                setCarregandoProcedimentos(true);
+                const data = await api.getProcedimentos();
+                if (Array.isArray(data) && data.length > 0) {
+                    setProcedimentos(data);
+                    setProcedimentoId(data[0].id);
+                }
+            } catch (err: any) {
+                console.error("Erro ao carregar procedimentos:", err);
+                setErro("Não foi possível carregar os procedimentos disponíveis.");
+            } finally {
+                setCarregandoProcedimentos(false);
+            }
+        }
+        fetchProcedimentos();
+    }, []);
+
+    // Procedimento ativo selecionado
+    const procedimentoAtual = useMemo(() => {
+        return (
+            procedimentos.find((p) => p.id === procedimentoId) || {
+                id: 1,
+                nome: "Consulta Odontológica",
+                duracao_minutos: 30
+            }
+        );
+    }, [procedimentos, procedimentoId]);
 
     // Impede voltar antes do mês corrente
     const isMesAtual =
@@ -90,9 +123,9 @@ export function AgendarConsulta() {
         if (isMesAtual) return;
         if (mesAtualVisualizado === 0) {
             setMesAtualVisualizado(11);
-            setAnoAtualVisualizado(prev => prev - 1);
+            setAnoAtualVisualizado((prev) => prev - 1);
         } else {
-            setMesAtualVisualizado(prev => prev - 1);
+            setMesAtualVisualizado((prev) => prev - 1);
         }
         setDiaSelecionado(1);
     };
@@ -100,9 +133,9 @@ export function AgendarConsulta() {
     const handleProximoMes = () => {
         if (mesAtualVisualizado === 11) {
             setMesAtualVisualizado(0);
-            setAnoAtualVisualizado(prev => prev + 1);
+            setAnoAtualVisualizado((prev) => prev + 1);
         } else {
-            setMesAtualVisualizado(prev => prev + 1);
+            setMesAtualVisualizado((prev) => prev + 1);
         }
         setDiaSelecionado(1);
     };
@@ -138,7 +171,7 @@ export function AgendarConsulta() {
         }
 
         // Preenche o restante até múltiplo de 7
-        let resto = (7 - (dias.length % 7)) % 7;
+        const resto = (7 - (dias.length % 7)) % 7;
         for (let i = 1; i <= resto; i++) {
             dias.push({
                 dia: i,
@@ -156,7 +189,7 @@ export function AgendarConsulta() {
 
         // Data e hora local exata
         const slotInicio = new Date(anoAtualVisualizado, mesAtualVisualizado, diaSelecionado, h, m, 0).getTime();
-        const slotFim = slotInicio + (procedimentoAtual.duracao * 60000);
+        const slotFim = slotInicio + (procedimentoAtual.duracao_minutos * 60000);
         const slotPadraoFim = slotInicio + (30 * 60000);
 
         return agendamentosExistentes.some((item) => {
@@ -175,6 +208,11 @@ export function AgendarConsulta() {
     const handleAgendar = async () => {
         setErro("");
 
+        if (!procedimentoId) {
+            setErro("Selecione um procedimento para continuar.");
+            return;
+        }
+
         if (isHorarioOcupado(horarioSelecionado)) {
             setErro("Este horário já está ocupado. Por favor, escolha outro.");
             return;
@@ -190,7 +228,7 @@ export function AgendarConsulta() {
 
             const [h, m] = horarioSelecionado.split(":").map(Number);
             const dataInicio = new Date(anoAtualVisualizado, mesAtualVisualizado, diaSelecionado, h, m, 0);
-            const dataFim = new Date(dataInicio.getTime() + procedimentoAtual.duracao * 60000);
+            const dataFim = new Date(dataInicio.getTime() + procedimentoAtual.duracao_minutos * 60000);
 
             const strInicio = `${dataBase} ${pad(dataInicio.getHours())}:${pad(dataInicio.getMinutes())}:00`;
             const strFim = `${dataBase} ${pad(dataFim.getHours())}:${pad(dataFim.getMinutes())}:00`;
@@ -237,17 +275,24 @@ export function AgendarConsulta() {
                             <label className="block text-xs font-semibold text-neutral-gray mb-2">
                                 Procedimento Odontológico
                             </label>
-                            <select
-                                value={procedimentoId}
-                                onChange={(e) => setProcedimentoId(Number(e.target.value))}
-                                className="w-full px-4 py-3 bg-[#FAFAFB] border border-neutral-border rounded-xl text-sm font-medium text-neutral-dark outline-none focus:border-primary-main cursor-pointer"
-                            >
-                                {PROCEDIMENTOS.map((proc) => (
-                                    <option key={proc.id} value={proc.id}>
-                                        {proc.nome} (~{proc.duracao} min)
-                                    </option>
-                                ))}
-                            </select>
+                            {carregandoProcedimentos ? (
+                                <div className="flex items-center gap-2 p-3 bg-[#FAFAFB] border border-neutral-border rounded-xl text-xs text-neutral-gray">
+                                    <Loader2 className="w-4 h-4 animate-spin text-primary-main" />
+                                    <span>Carregando opções disponíveis...</span>
+                                </div>
+                            ) : (
+                                <select
+                                    value={procedimentoId ?? ""}
+                                    onChange={(e) => setProcedimentoId(Number(e.target.value))}
+                                    className="w-full px-4 py-3 bg-[#FAFAFB] border border-neutral-border rounded-xl text-sm font-medium text-neutral-dark outline-none focus:border-primary-main cursor-pointer"
+                                >
+                                    {procedimentos.map((proc) => (
+                                        <option key={proc.id} value={proc.id}>
+                                            {proc.nome} (~{proc.duracao_minutos} min)
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                         </div>
 
                         {/* Calendário */}
@@ -258,8 +303,8 @@ export function AgendarConsulta() {
                                     onClick={handleMesAnterior}
                                     disabled={isMesAtual}
                                     className={`p-1.5 rounded-lg transition ${isMesAtual
-                                        ? "text-neutral-300 cursor-not-allowed"
-                                        : "hover:bg-neutral-bg text-neutral-gray hover:text-neutral-dark cursor-pointer"
+                                            ? "text-neutral-300 cursor-not-allowed"
+                                            : "hover:bg-neutral-bg text-neutral-gray hover:text-neutral-dark cursor-pointer"
                                         }`}
                                     title={isMesAtual ? "Não é possível agendar em meses passados" : "Mês anterior"}
                                 >
@@ -295,10 +340,10 @@ export function AgendarConsulta() {
                                             disabled={item.desabilitado}
                                             onClick={() => setDiaSelecionado(item.dia)}
                                             className={`h-9 w-9 mx-auto flex items-center justify-center rounded-full transition-all ${item.desabilitado
-                                                ? "text-neutral-300 cursor-not-allowed"
-                                                : isSelected
-                                                    ? "bg-primary-main text-white font-bold shadow-sm"
-                                                    : "text-neutral-dark hover:bg-neutral-bg cursor-pointer"
+                                                    ? "text-neutral-300 cursor-not-allowed"
+                                                    : isSelected
+                                                        ? "bg-primary-main text-white font-bold shadow-sm"
+                                                        : "text-neutral-dark hover:bg-neutral-bg cursor-pointer"
                                                 }`}
                                         >
                                             {item.dia}
@@ -326,7 +371,7 @@ export function AgendarConsulta() {
                                 Manhã (09:00 - 11:30)
                             </span>
                             <div className="grid grid-cols-3 gap-2">
-                                {SLOTS_HORARIOS.filter(s => s.periodo === "manha").map((slot) => {
+                                {SLOTS_HORARIOS.filter((s) => s.periodo === "manha").map((slot) => {
                                     const ocupado = isHorarioOcupado(slot.hora);
                                     const selecionado = horarioSelecionado === slot.hora;
 
@@ -337,10 +382,10 @@ export function AgendarConsulta() {
                                             disabled={ocupado}
                                             onClick={() => setHorarioSelecionado(slot.hora)}
                                             className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all text-center ${ocupado
-                                                ? "bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed opacity-60"
-                                                : selecionado
-                                                    ? "bg-primary-main border-primary-main text-white shadow-sm"
-                                                    : "bg-white border-neutral-border text-neutral-dark hover:border-primary-main/60 cursor-pointer"
+                                                    ? "bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed opacity-60"
+                                                    : selecionado
+                                                        ? "bg-primary-main border-primary-main text-white shadow-sm"
+                                                        : "bg-white border-neutral-border text-neutral-dark hover:border-primary-main/60 cursor-pointer"
                                                 }`}
                                         >
                                             {slot.hora}
@@ -356,7 +401,7 @@ export function AgendarConsulta() {
                                 Tarde / Noite (13:00 - 19:30)
                             </span>
                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {SLOTS_HORARIOS.filter(s => s.periodo === "tarde").map((slot) => {
+                                {SLOTS_HORARIOS.filter((s) => s.periodo === "tarde").map((slot) => {
                                     const ocupado = isHorarioOcupado(slot.hora);
                                     const selecionado = horarioSelecionado === slot.hora;
 
@@ -367,10 +412,10 @@ export function AgendarConsulta() {
                                             disabled={ocupado}
                                             onClick={() => setHorarioSelecionado(slot.hora)}
                                             className={`py-2 px-3 text-xs font-semibold rounded-xl border transition-all text-center ${ocupado
-                                                ? "bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed opacity-60"
-                                                : selecionado
-                                                    ? "bg-primary-main border-primary-main text-white shadow-sm"
-                                                    : "bg-white border-neutral-border text-neutral-dark hover:border-primary-main/60 cursor-pointer"
+                                                    ? "bg-neutral-100 border-neutral-200 text-neutral-400 line-through cursor-not-allowed opacity-60"
+                                                    : selecionado
+                                                        ? "bg-primary-main border-primary-main text-white shadow-sm"
+                                                        : "bg-white border-neutral-border text-neutral-dark hover:border-primary-main/60 cursor-pointer"
                                                 }`}
                                         >
                                             {slot.hora}
@@ -394,7 +439,7 @@ export function AgendarConsulta() {
                         <Button
                             type="button"
                             onClick={handleAgendar}
-                            disabled={salvando || isHorarioOcupado(horarioSelecionado)}
+                            disabled={salvando || isHorarioOcupado(horarioSelecionado) || carregandoProcedimentos}
                             className="w-full bg-primary-main hover:bg-primary-dark text-white rounded-xl py-3.5 font-semibold text-sm cursor-pointer flex items-center justify-center gap-2"
                         >
                             {salvando ? (
