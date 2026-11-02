@@ -321,6 +321,61 @@ export const api = {
         }
 
         return data;
+    },
+
+    // ==========================================
+    // PRONTUÁRIOS MÉDICOS / ODONTOLÓGICOS
+    // ==========================================
+
+    // Buscar prontuário por ID do paciente (GET /prontuarios/paciente/:id)
+    async getProntuarioByPacienteId(pacienteId: number | string) {
+        const response = await fetch(`${API_BASE_URL}/prontuarios/paciente/${pacienteId}`, {
+            headers: getAuthHeaders()
+        });
+
+        if (response.status === 404) {
+            return null;
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Erro ao carregar prontuário!');
+        }
+        return data;
+    },
+
+    // Salvar ou Criar Prontuário (POST ou PUT)
+    async saveProntuario(dados: {
+        paciente_id: number;
+        isEdicao: boolean;
+        anamnese?: string;
+        historico_tratamento?: string;
+        controle_protese?: string;
+        follow_up_evolucao?: string;
+    }) {
+        const url = dados.isEdicao
+            ? `${API_BASE_URL}/prontuarios/paciente/${dados.paciente_id}`
+            : `${API_BASE_URL}/prontuarios`;
+
+        const method = dados.isEdicao ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method,
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                paciente_id: dados.paciente_id,
+                anamnese: dados.anamnese,
+                historico_tratamento: dados.historico_tratamento,
+                controle_protese: dados.controle_protese,
+                follow_up_evolucao: dados.follow_up_evolucao
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || data.message || 'Erro ao salvar prontuário');
+        }
+        return data;
     }
 };
 

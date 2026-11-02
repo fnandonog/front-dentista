@@ -22,9 +22,11 @@ import {
     UserCheck,
     Trash2,
     NotebookPen,
+    FileText,
 } from "lucide-react";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { ModalProntuario } from "../components/ModalProntuario";
 import { api } from "../services/api";
 
 export type AdminTab = "visao-geral" | "agenda" | "pacientes" | "tratamentos" | "configuracoes";
@@ -60,33 +62,46 @@ export interface ProcedimentoDB {
     duracao_minutos: number;
 }
 
-// Extrai estritamente 'AAAA-MM-DD' sem desvio de Timezone UTC
+// Converte a string (mesmo que venha sem Z do MySQL) para o objeto Date real em UTC
+const parseUtcDate = (dataValor: string | Date): Date => {
+    if (!dataValor) return new Date();
+    if (dataValor instanceof Date) return dataValor;
+
+    // Se a data já contiver Z ou offset (+00:00), passa direto
+    if (dataValor.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dataValor)) {
+        return new Date(dataValor);
+    }
+
+    // Se vier do MySQL como "YYYY-MM-DD HH:mm:ss" ou "YYYY-MM-DDTHH:mm:ss", força a leitura em UTC (anexando Z)
+    const normalizada = dataValor.replace(" ", "T");
+    return new Date(`${normalizada}Z`);
+};
+
+// Extrai estritamente 'AAAA-MM-DD' sem desvio de fuso horário
 const extrairDataLocal = (dataValor: string | Date): string => {
     if (!dataValor) return "";
-    if (typeof dataValor === "string") {
-        if (dataValor.includes("T")) return dataValor.split("T")[0];
-        if (dataValor.includes(" ")) return dataValor.split(" ")[0];
-    }
-    const d = new Date(dataValor);
+    const d = parseUtcDate(dataValor);
     const ano = d.getFullYear();
     const mes = String(d.getMonth() + 1).padStart(2, "0");
     const dia = String(d.getDate()).padStart(2, "0");
     return `${ano}-${mes}-${dia}`;
 };
 
-// Formata o horário local HH:mm a partir de string 'AAAA-MM-DD HH:mm:ss' ou ISO
+// Formata o horário local HH:mm a partir de string ISO ou SQL sem conversão indesejada de UTC
 const extrairHoraLocal = (dataValor: string): string => {
     if (!dataValor) return "--:--";
-    if (dataValor.includes("T")) {
-        const partes = dataValor.split("T")[1];
-        return partes.substring(0, 5);
-    }
-    if (dataValor.includes(" ")) {
-        const partes = dataValor.split(" ")[1];
-        return partes.substring(0, 5);
-    }
-    const d = new Date(dataValor);
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const d = parseUtcDate(dataValor);
+    return d.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+    });
+};
+
+// Converte strings de data com segurança para ordenação numérica em milissegundos
+const parseDataTimestamp = (str: string): number => {
+    if (!str) return 0;
+    return parseUtcDate(str).getTime();
 };
 
 export function AdminDashboard() {
@@ -101,6 +116,9 @@ export function AdminDashboard() {
     const [procedimentos, setProcedimentos] = useState<ProcedimentoDB[]>([]);
     const [busca, setBusca] = useState("");
     const [dataSelecionada, setDataSelecionada] = useState<Date>(new Date());
+
+    // Estado do Modal de Prontuário
+    const [pacienteProntuario, setPacienteProntuario] = useState<{ id: number; nome: string; telefone?: string } | null>(null);
 
     // Estados do Modal "Novo Agendamento"
     const [modalAberto, setModalAberto] = useState(false);
@@ -265,8 +283,8 @@ export function AdminDashboard() {
         });
 
         const proximasHoje = hoje
-            .filter((a) => new Date(a.data_hora_inicio.replace(" ", "T")).getTime() >= agora && a.estado === "AGENDADO")
-            .sort((a, b) => new Date(a.data_hora_inicio.replace(" ", "T")).getTime() - new Date(b.data_hora_inicio.replace(" ", "T")).getTime());
+            .filter((a) => parseDataTimestamp(a.data_hora_inicio) >= agora && a.estado === "AGENDADO")
+            .sort((a, b) => parseDataTimestamp(a.data_hora_inicio) - parseDataTimestamp(b.data_hora_inicio));
 
         const proximaHora =
             proximasHoje.length > 0
@@ -293,7 +311,7 @@ export function AdminDashboard() {
         const lista = pacientes.map((p) => {
             const consultasDoPaciente = agendamentos
                 .filter((a) => a.paciente_id === p.id)
-                .sort((a, b) => new Date(b.data_hora_inicio.replace(" ", "T")).getTime() - new Date(a.data_hora_inicio.replace(" ", "T")).getTime());
+                .sort((a, b) => parseDataTimestamp(b.data_hora_inicio) - parseDataTimestamp(a.data_hora_inicio));
 
             const ultimaConsulta = consultasDoPaciente[0];
 
@@ -302,7 +320,7 @@ export function AdminDashboard() {
                 nome: p.nome,
                 telefone: p.telefone || "Não informado",
                 ultimaConsulta: ultimaConsulta
-                    ? new Date(ultimaConsulta.data_hora_inicio.replace(" ", "T")).toLocaleDateString("pt-BR")
+                    ? extrairDataLocal(ultimaConsulta.data_hora_inicio).split("-").reverse().join("/")
                     : "Sem consultas",
                 tratamento: ultimaConsulta ? ultimaConsulta.procedimento_nome : "Consulta Inicial",
                 status: ultimaConsulta?.estado === "CONCLUIDO" ? "Concluído" : "Em Tratamento"
@@ -686,12 +704,13 @@ export function AdminDashboard() {
                                                     <th className="py-4 px-6">Última Consulta</th>
                                                     <th className="py-4 px-6">Tratamento</th>
                                                     <th className="py-4 px-6">Status</th>
+                                                    <th className="py-4 px-6 text-right">Ações</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-neutral-border/60">
                                                 {listaPacientesFormatada.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan={5} className="py-8 text-center text-neutral-gray">
+                                                        <td colSpan={6} className="py-8 text-center text-neutral-gray">
                                                             Nenhum paciente cadastrado encontrado.
                                                         </td>
                                                     </tr>
@@ -713,6 +732,16 @@ export function AdminDashboard() {
                                                                 >
                                                                     {p.status}
                                                                 </span>
+                                                            </td>
+                                                            <td className="py-4 px-6 text-right">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setPacienteProntuario({ id: p.id, nome: p.nome, telefone: p.telefone })}
+                                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-light text-primary-main hover:bg-primary-main hover:text-white rounded-lg font-semibold text-[11px] transition cursor-pointer"
+                                                                >
+                                                                    <FileText className="w-3.5 h-3.5" />
+                                                                    <span>Prontuário</span>
+                                                                </button>
                                                             </td>
                                                         </tr>
                                                     ))
@@ -959,6 +988,14 @@ export function AdminDashboard() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* MODAL: PRONTUÁRIO CLÍNICO */}
+            {pacienteProntuario && (
+                <ModalProntuario
+                    paciente={pacienteProntuario}
+                    onClose={() => setPacienteProntuario(null)}
+                />
             )}
         </div>
     );
