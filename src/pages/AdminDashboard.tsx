@@ -23,6 +23,7 @@ import {
     Trash2,
     NotebookPen,
     FileText,
+    AlertTriangle,
 } from "lucide-react";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -67,12 +68,10 @@ const parseUtcDate = (dataValor: string | Date): Date => {
     if (!dataValor) return new Date();
     if (dataValor instanceof Date) return dataValor;
 
-    // Se a data já contiver Z ou offset (+00:00), passa direto
     if (dataValor.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dataValor)) {
         return new Date(dataValor);
     }
 
-    // Se vier do MySQL como "YYYY-MM-DD HH:mm:ss" ou "YYYY-MM-DDTHH:mm:ss", força a leitura em UTC (anexando Z)
     const normalizada = dataValor.replace(" ", "T");
     return new Date(`${normalizada}Z`);
 };
@@ -87,7 +86,7 @@ const extrairDataLocal = (dataValor: string | Date): string => {
     return `${ano}-${mes}-${dia}`;
 };
 
-// Formata o horário local HH:mm a partir de string ISO ou SQL sem conversão indesejada de UTC
+// Formata o horário local HH:mm a partir de string ISO ou SQL
 const extrairHoraLocal = (dataValor: string): string => {
     if (!dataValor) return "--:--";
     const d = parseUtcDate(dataValor);
@@ -128,6 +127,7 @@ export function AdminDashboard() {
     const [formData, setFormData] = useState("");
     const [formHora, setFormHora] = useState("");
     const [formObservacao, setFormObservacao] = useState("Agendado pela Dra. Thaís");
+    const [formEmergencia, setFormEmergencia] = useState(false);
 
     // Estados do Formulário de "Novo Tratamento" (Aba Tratamentos)
     const [cadastrandoTratamento, setCadastrandoTratamento] = useState(false);
@@ -200,6 +200,7 @@ export function AdminDashboard() {
                 paciente_id: Number(formPacienteId),
                 procedimento_id: Number(formProcedimentoId),
                 data_hora_inicio: dataHoraInicio,
+                is_emergencia: formEmergencia ? 1 : 0,
                 observacao: formObservacao.trim() || "Agendado pela Dra. Thaís"
             });
 
@@ -209,6 +210,7 @@ export function AdminDashboard() {
             setFormData("");
             setFormHora("");
             setFormObservacao("Agendado pela Dra. Thaís");
+            setFormEmergencia(false);
 
             await carregarDados();
         } catch (err: any) {
@@ -270,10 +272,18 @@ export function AdminDashboard() {
         const mesAtual = new Date().getMonth();
         const anoAtual = new Date().getFullYear();
 
-        const hoje = agendamentos.filter((a) => {
-            const dt = extrairDataLocal(a.data_hora_inicio);
-            return dt === hojeStr && a.estado !== "CANCELADO";
-        });
+        // Ordena colocando emergências (is_emergencia === 1) no topo, seguidas pela ordem cronológica
+        const hoje = agendamentos
+            .filter((a) => {
+                const dt = extrairDataLocal(a.data_hora_inicio);
+                return dt === hojeStr && a.estado !== "CANCELADO";
+            })
+            .sort((a, b) => {
+                if (Number(b.is_emergencia) !== Number(a.is_emergencia)) {
+                    return Number(b.is_emergencia) - Number(a.is_emergencia);
+                }
+                return parseDataTimestamp(a.data_hora_inicio) - parseDataTimestamp(b.data_hora_inicio);
+            });
 
         const mes = agendamentos.filter((a) => {
             const dtStr = extrairDataLocal(a.data_hora_inicio);
@@ -284,7 +294,12 @@ export function AdminDashboard() {
 
         const proximasHoje = hoje
             .filter((a) => parseDataTimestamp(a.data_hora_inicio) >= agora && a.estado === "AGENDADO")
-            .sort((a, b) => parseDataTimestamp(a.data_hora_inicio) - parseDataTimestamp(b.data_hora_inicio));
+            .sort((a, b) => {
+                if (Number(b.is_emergencia) !== Number(a.is_emergencia)) {
+                    return Number(b.is_emergencia) - Number(a.is_emergencia);
+                }
+                return parseDataTimestamp(a.data_hora_inicio) - parseDataTimestamp(b.data_hora_inicio);
+            });
 
         const proximaHora =
             proximasHoje.length > 0
@@ -301,10 +316,17 @@ export function AdminDashboard() {
 
     const consultasAgendaDia = useMemo(() => {
         const dataStr = extrairDataLocal(dataSelecionada);
-        return agendamentos.filter((a) => {
-            const dt = extrairDataLocal(a.data_hora_inicio);
-            return dt === dataStr;
-        });
+        return agendamentos
+            .filter((a) => {
+                const dt = extrairDataLocal(a.data_hora_inicio);
+                return dt === dataStr;
+            })
+            .sort((a, b) => {
+                if (Number(b.is_emergencia) !== Number(a.is_emergencia)) {
+                    return Number(b.is_emergencia) - Number(a.is_emergencia);
+                }
+                return parseDataTimestamp(a.data_hora_inicio) - parseDataTimestamp(b.data_hora_inicio);
+            });
     }, [agendamentos, dataSelecionada]);
 
     const listaPacientesFormatada = useMemo(() => {
@@ -546,18 +568,34 @@ export function AdminDashboard() {
                                             ) : (
                                                 metricas.consultasHoje.map((c) => {
                                                     const horaInicio = extrairHoraLocal(c.data_hora_inicio);
+                                                    const isUrgente = Number(c.is_emergencia) === 1;
 
                                                     return (
                                                         <div
                                                             key={c.id}
-                                                            className="flex items-center justify-between p-4 bg-neutral-bg/60 border border-neutral-border/60 rounded-xl text-xs hover:bg-white transition"
+                                                            className={`flex items-center justify-between p-4 border rounded-xl text-xs transition ${isUrgente
+                                                                    ? "bg-red-50/70 border-red-300 hover:bg-red-50"
+                                                                    : "bg-neutral-bg/60 border-neutral-border/60 hover:bg-white"
+                                                                }`}
                                                         >
-                                                            <span className="font-bold text-neutral-dark px-3 py-1 bg-white border border-neutral-border rounded-lg">
+                                                            <span
+                                                                className={`font-bold px-3 py-1 bg-white border rounded-lg ${isUrgente
+                                                                        ? "text-red-600 border-red-200"
+                                                                        : "text-neutral-dark border-neutral-border"
+                                                                    }`}
+                                                            >
                                                                 {horaInicio}
                                                             </span>
                                                             <div className="flex-1 px-6">
-                                                                <span className="font-semibold text-neutral-dark block">{c.paciente_nome}</span>
-                                                                <span className="text-[11px] text-neutral-gray">{c.procedimento_nome}</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-semibold text-neutral-dark">{c.paciente_nome}</span>
+                                                                    {isUrgente && (
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded-md uppercase tracking-wide">
+                                                                            <AlertTriangle className="w-3 h-3" /> Emergência
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[11px] text-neutral-gray block mt-0.5">{c.procedimento_nome}</span>
                                                             </div>
 
                                                             <div className="flex items-center gap-3">
@@ -646,18 +684,36 @@ export function AdminDashboard() {
                                             consultasAgendaDia.map((item) => {
                                                 const inicio = extrairHoraLocal(item.data_hora_inicio);
                                                 const fim = extrairHoraLocal(item.data_hora_fim);
+                                                const isUrgente = Number(item.is_emergencia) === 1;
 
                                                 return (
                                                     <div
                                                         key={item.id}
                                                         className="flex items-start gap-6 border-b border-neutral-border/40 pb-4 last:border-0"
                                                     >
-                                                        <span className="text-xs font-bold text-neutral-gray w-12 pt-1">{inicio}</span>
-                                                        <div className="flex-1 bg-primary-light/40 border-l-4 border-primary-main p-4 rounded-xl flex items-center justify-between">
+                                                        <span className={`text-xs font-bold w-12 pt-1 ${isUrgente ? "text-red-600" : "text-neutral-gray"}`}>
+                                                            {inicio}
+                                                        </span>
+                                                        <div
+                                                            className={`flex-1 border-l-4 p-4 rounded-xl flex items-center justify-between ${isUrgente
+                                                                    ? "bg-red-50/80 border-red-600"
+                                                                    : "bg-primary-light/40 border-primary-main"
+                                                                }`}
+                                                        >
                                                             <div>
-                                                                <span className="text-[11px] font-bold text-primary-main bg-white px-2 py-0.5 rounded-md">
-                                                                    {item.procedimento_nome}
-                                                                </span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span
+                                                                        className={`text-[11px] font-bold bg-white px-2 py-0.5 rounded-md ${isUrgente ? "text-red-600" : "text-primary-main"
+                                                                            }`}
+                                                                    >
+                                                                        {item.procedimento_nome}
+                                                                    </span>
+                                                                    {isUrgente && (
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded-md uppercase">
+                                                                            <AlertTriangle className="w-3 h-3" /> Prioridade / Emergência
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <h4 className="text-xs font-semibold text-neutral-dark mt-2">
                                                                     {item.paciente_nome}
                                                                 </h4>
@@ -966,6 +1022,20 @@ export function AdminDashboard() {
                                     placeholder="Ex: Agendado pela Dra. Thaís"
                                     className="w-full p-3 bg-neutral-bg/60 border border-neutral-border rounded-xl outline-none focus:border-primary-main"
                                 />
+                            </div>
+
+                            <div className="flex items-center gap-2.5 p-3 bg-red-50/70 border border-red-200 rounded-xl">
+                                <input
+                                    id="check-emergencia"
+                                    type="checkbox"
+                                    checked={formEmergencia}
+                                    onChange={(e) => setFormEmergencia(e.target.checked)}
+                                    className="w-4 h-4 accent-red-600 rounded cursor-pointer"
+                                />
+                                <label htmlFor="check-emergencia" className="font-semibold text-red-700 cursor-pointer select-none flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span>Atendimento de Emergência (Prioridade máxima na fila)</span>
+                                </label>
                             </div>
 
                             <div className="flex justify-end gap-3 pt-3 border-t border-neutral-border">
